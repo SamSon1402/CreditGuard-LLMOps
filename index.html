@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CreditGuard-LLMOps — Compliant LLM-Augmented Credit Scoring Pipeline</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #06b6d4;
+            --primary-glow: rgba(6,182,212,0.3);
+            --secondary: #a855f7;
+            --accent: #f97316;
+            --danger: #ef4444;
+            --warning: #eab308;
+            --success: #22c55e;
+            --bg-dark: #020617;
+            --bg-card: #0a1628;
+            --bg-elevated: #101d33;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #475569;
+            --border: #1c3050;
+            --gradient-main: linear-gradient(135deg, #06b6d4 0%, #a855f7 50%, #f97316 100%);
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'DM Sans', sans-serif; background: var(--bg-dark);
+            color: var(--text-primary); min-height: 100vh;
+            background-image:
+                radial-gradient(ellipse at 10% 90%, rgba(6,182,212,0.07) 0%, transparent 50%),
+                radial-gradient(ellipse at 90% 10%, rgba(168,85,247,0.06) 0%, transparent 50%);
+        }
+        .header {
+            background: linear-gradient(180deg, rgba(6,182,212,0.04) 0%, transparent 100%);
+            border-bottom: 1px solid var(--border); padding: 0.6rem 2rem;
+            position: sticky; top: 0; z-index: 100; backdrop-filter: blur(20px);
+        }
+        .header-content { max-width: 1800px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+        .logo { display: flex; align-items: center; gap: 0.75rem; }
+        .logo-icon {
+            width: 44px; height: 44px; background: var(--gradient-main);
+            border-radius: 11px; display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem; position: relative;
+        }
+        .logo-icon::after { content:''; position:absolute; inset:-2px; background:var(--gradient-main); border-radius:13px; z-index:-1; opacity:0.4; filter:blur(8px); }
+        .logo-text { font-size:1.35rem; font-weight:800; background:var(--gradient-main); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .logo-sub { font-size:0.55rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:3px; }
+        .badges { display:flex; gap:0.35rem; }
+        .badge { background:var(--bg-card); border:1px solid var(--border); padding:0.3rem 0.65rem; border-radius:6px; font-size:0.6rem; color:var(--text-secondary); font-family:'IBM Plex Mono',monospace; }
+        .badge.live { background:rgba(34,197,94,0.12); border-color:var(--success); color:var(--success); }
+        .badge.live::before { content:''; display:inline-block; width:6px; height:6px; background:var(--success); border-radius:50%; margin-right:5px; animation:pulse 1.5s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+        .main { max-width:1800px; margin:0 auto; padding:1.25rem 2rem; }
+        .hero { text-align:center; margin-bottom:1.2rem; }
+        .hero h1 { font-size:2.1rem; font-weight:900; margin-bottom:0.3rem; background:var(--gradient-main); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .hero p { color:var(--text-secondary); font-size:0.92rem; }
+
+        /* Pipeline Steps */
+        .pipeline-strip { display:flex; gap:0.4rem; margin-bottom:1.2rem; overflow-x:auto; padding-bottom:0.3rem; }
+        .pipe-step {
+            flex:1; min-width:130px; background:var(--bg-card); border:1px solid var(--border);
+            border-radius:12px; padding:0.75rem; text-align:center; position:relative; transition:all 0.4s;
+        }
+        .pipe-step.active { border-color:var(--primary); background:rgba(6,182,212,0.1); }
+        .pipe-step.done { border-color:var(--success); }
+        .pipe-step.error { border-color:var(--danger); }
+        .pipe-step-icon { font-size:1.3rem; margin-bottom:0.25rem; }
+        .pipe-step-name { font-size:0.68rem; font-weight:700; }
+        .pipe-step-time { font-size:0.55rem; color:var(--text-muted); font-family:'IBM Plex Mono',monospace; margin-top:0.15rem; }
+        .pipe-step::after {
+            content:'→'; position:absolute; right:-14px; top:50%; transform:translateY(-50%);
+            color:var(--text-muted); font-size:0.9rem; z-index:1;
+        }
+        .pipe-step:last-child::after { content: ''; }
+
+        .workspace { display:grid; grid-template-columns:1fr 420px; gap:1.2rem; }
+        @media(max-width:1300px){ .workspace{grid-template-columns:1fr;} }
+
+        .card { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+        .card-header { padding:0.85rem 1.2rem; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:linear-gradient(180deg,rgba(28,48,80,0.3) 0%,transparent 100%); }
+        .card-title { font-size:0.85rem; font-weight:700; display:flex; align-items:center; gap:0.5rem; }
+        .card-body { padding:1.2rem; }
+
+        /* Application Card */
+        .applicant-card {
+            background: var(--bg-elevated); border-radius:14px; padding:1.2rem; margin-bottom:1rem;
+            border: 1px solid var(--border);
+        }
+        .applicant-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; }
+        .applicant-name { font-size:1.1rem; font-weight:800; }
+        .applicant-id { font-size:0.65rem; color:var(--text-muted); font-family:'IBM Plex Mono',monospace; }
+        .applicant-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:0.5rem; }
+        .app-field { background:var(--bg-dark); border-radius:8px; padding:0.6rem; text-align:center; }
+        .app-field-value { font-size:1rem; font-weight:700; font-family:'IBM Plex Mono',monospace; color:var(--primary); }
+        .app-field-label { font-size:0.55rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; }
+
+        /* Score Display */
+        .score-display { text-align:center; margin:1.2rem 0; }
+        .score-circle {
+            width:150px; height:150px; border-radius:50%; margin:0 auto 0.75rem;
+            background:conic-gradient(var(--success) 0% 0%, var(--bg-elevated) 0% 100%);
+            display:flex; align-items:center; justify-content:center;
+            position:relative; transition: background 1s;
+        }
+        .score-circle-inner {
+            width:120px; height:120px; border-radius:50%; background:var(--bg-card);
+            display:flex; align-items:center; justify-content:center; flex-direction:column;
+        }
+        .score-value { font-size:2.4rem; font-weight:900; font-family:'IBM Plex Mono',monospace; }
+        .score-label { font-size:0.6rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; }
+        .score-verdict { font-size:1rem; font-weight:800; margin-top:0.3rem; }
+        .score-verdict.approved { color:var(--success); }
+        .score-verdict.denied { color:var(--danger); }
+        .score-verdict.review { color:var(--warning); }
+
+        /* LLM Explanation */
+        .llm-explanation {
+            background:var(--bg-elevated); border-radius:12px; padding:1rem;
+            border-left:3px solid var(--secondary); margin-top:1rem;
+        }
+        .llm-header { display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem; }
+        .llm-badge { background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.3); padding:0.2rem 0.5rem; border-radius:6px; font-size:0.6rem; color:var(--secondary); font-family:'IBM Plex Mono',monospace; }
+        .llm-text { font-size:0.8rem; line-height:1.6; color:var(--text-secondary); }
+        .llm-text .highlight { color:var(--primary); font-weight:600; }
+        .llm-cursor { display:inline-block; width:2px; height:14px; background:var(--secondary); animation:blink 0.8s infinite; vertical-align:middle; margin-left:2px; }
+        @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
+
+        /* Controls */
+        .controls { display:flex; gap:0.5rem; margin-bottom:1rem; }
+        .ctrl-btn {
+            flex:1; padding:0.7rem; background:var(--bg-elevated);
+            border:1px solid var(--border); border-radius:10px;
+            color:var(--text-primary); font-family:'DM Sans',sans-serif;
+            font-size:0.78rem; font-weight:600; cursor:pointer; transition:all 0.3s;
+            display:flex; align-items:center; justify-content:center; gap:0.4rem;
+        }
+        .ctrl-btn:hover { border-color:var(--primary); background:rgba(6,182,212,0.1); }
+        .ctrl-btn.active { border-color:var(--primary); background:rgba(6,182,212,0.18); color:var(--primary); }
+
+        /* Sidebar */
+        .sidebar { display:flex; flex-direction:column; gap:1rem; }
+
+        /* Guardrails */
+        .guardrail-list { display:flex; flex-direction:column; gap:0.4rem; }
+        .guardrail-item {
+            display:flex; align-items:center; gap:0.6rem; padding:0.6rem;
+            background:var(--bg-elevated); border-radius:10px; border-left:3px solid var(--border);
+            transition:all 0.3s;
+        }
+        .guardrail-item.pass { border-left-color:var(--success); }
+        .guardrail-item.fail { border-left-color:var(--danger); }
+        .guardrail-item.pending { border-left-color:var(--text-muted); }
+        .guardrail-icon { font-size:0.9rem; }
+        .guardrail-name { font-size:0.75rem; font-weight:600; flex:1; }
+        .guardrail-status { font-size:0.6rem; font-family:'IBM Plex Mono',monospace; font-weight:600; }
+        .guardrail-status.pass { color:var(--success); }
+        .guardrail-status.fail { color:var(--danger); }
+
+        /* HITL */
+        .hitl-section { background:var(--bg-elevated); border-radius:12px; padding:1rem; }
+        .hitl-header { font-size:0.8rem; font-weight:700; margin-bottom:0.75rem; }
+        .hitl-actions { display:flex; gap:0.5rem; }
+        .hitl-btn {
+            flex:1; padding:0.75rem; border-radius:10px; border:1px solid var(--border);
+            font-family:'DM Sans',sans-serif; font-size:0.8rem; font-weight:700;
+            cursor:pointer; transition:all 0.3s; text-align:center;
+        }
+        .hitl-btn.approve { background:rgba(34,197,94,0.12); border-color:rgba(34,197,94,0.3); color:var(--success); }
+        .hitl-btn.approve:hover { background:rgba(34,197,94,0.25); }
+        .hitl-btn.reject { background:rgba(239,68,68,0.12); border-color:rgba(239,68,68,0.3); color:var(--danger); }
+        .hitl-btn.reject:hover { background:rgba(239,68,68,0.25); }
+        .hitl-btn.escalate { background:rgba(234,179,8,0.12); border-color:rgba(234,179,8,0.3); color:var(--warning); }
+        .hitl-btn.escalate:hover { background:rgba(234,179,8,0.25); }
+
+        /* Audit Trail */
+        .audit-log { max-height:220px; overflow-y:auto; }
+        .audit-item {
+            display:flex; gap:0.6rem; padding:0.6rem; background:var(--bg-elevated);
+            border-radius:9px; margin-bottom:0.35rem; border-left:3px solid var(--primary);
+            animation:slideIn 0.3s ease;
+        }
+        .audit-item.dora { border-left-color:var(--accent); }
+        .audit-item.llm { border-left-color:var(--secondary); }
+        .audit-item.guard { border-left-color:var(--success); }
+        @keyframes slideIn { from{opacity:0;transform:translateX(-8px);} to{opacity:1;transform:translateX(0);} }
+        .audit-icon { width:28px; height:28px; background:rgba(6,182,212,0.15); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:0.8rem; }
+        .audit-content { flex:1; }
+        .audit-title { font-size:0.72rem; font-weight:600; }
+        .audit-meta { font-size:0.58rem; color:var(--text-muted); font-family:'IBM Plex Mono',monospace; }
+
+        /* Feature Importance */
+        .feature-list { display:flex; flex-direction:column; gap:0.4rem; }
+        .feature-item { display:flex; align-items:center; gap:0.5rem; }
+        .feature-name { font-size:0.7rem; width:110px; color:var(--text-secondary); }
+        .feature-bar { flex:1; height:8px; background:var(--bg-dark); border-radius:4px; overflow:hidden; }
+        .feature-fill { height:100%; border-radius:4px; transition:width 0.8s ease; }
+        .feature-val { font-size:0.65rem; font-family:'IBM Plex Mono',monospace; width:35px; text-align:right; color:var(--text-muted); }
+
+        /* Processing */
+        .processing-overlay { position:fixed; inset:0; background:rgba(2,6,23,0.97); display:none; flex-direction:column; align-items:center; justify-content:center; z-index:1000; }
+        .processing-overlay.active { display:flex; }
+        .proc-anim { display:flex; gap:8px; margin-bottom:2rem; }
+        .proc-dot { width:14px; height:14px; border-radius:50%; animation:dotPulse 1.2s infinite; }
+        .proc-dot:nth-child(1) { background:var(--primary); animation-delay:0s; }
+        .proc-dot:nth-child(2) { background:var(--secondary); animation-delay:0.15s; }
+        .proc-dot:nth-child(3) { background:var(--accent); animation-delay:0.3s; }
+        .proc-dot:nth-child(4) { background:var(--success); animation-delay:0.45s; }
+        .proc-dot:nth-child(5) { background:var(--primary); animation-delay:0.6s; }
+        @keyframes dotPulse { 0%,100%{transform:scale(1);opacity:0.3;} 50%{transform:scale(1.5);opacity:1;} }
+        .proc-text { font-size:1rem; font-weight:700; margin-bottom:0.4rem; }
+        .proc-stage { font-size:0.8rem; color:var(--text-muted); font-family:'IBM Plex Mono',monospace; margin-bottom:1.2rem; }
+        .proc-bar-wrap { width:260px; height:4px; background:var(--bg-elevated); border-radius:3px; overflow:hidden; }
+        .proc-bar { height:100%; background:var(--gradient-main); width:0%; transition:width 0.3s; }
+
+        /* Toast */
+        .toast { position:fixed; bottom:1.5rem; right:1.5rem; background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:0.8rem 1.2rem; display:flex; align-items:center; gap:0.5rem; box-shadow:0 15px 50px rgba(0,0,0,0.5); transform:translateY(100px); opacity:0; transition:all 0.4s; z-index:1000; }
+        .toast.show { transform:translateY(0); opacity:1; }
+        .toast-icon { font-size:1.2rem; }
+        .toast-title { font-size:0.8rem; font-weight:600; }
+        .toast-msg { font-size:0.65rem; color:var(--text-muted); }
+
+        ::-webkit-scrollbar { width:5px; }
+        ::-webkit-scrollbar-track { background:var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">🏦</div>
+                <div>
+                    <div class="logo-text">CreditGuard-LLMOps</div>
+                    <div class="logo-sub">Compliant Credit Scoring Pipeline</div>
+                </div>
+            </div>
+            <div class="badges">
+                <span class="badge live">● Pipeline Active</span>
+                <span class="badge">EU AI Act Art. 6 High-Risk</span>
+                <span class="badge">DORA Compliant</span>
+                <span class="badge">PydanticAI Guards</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="hero">
+            <h1>🏦 LLM-Augmented Credit Scoring</h1>
+            <p>EU AI Act compliant pipeline — ML scoring + LLM explainability + guardrails + human-in-the-loop oversight</p>
+        </div>
+
+        <div class="pipeline-strip" id="pipelineStrip">
+            <div class="pipe-step" id="step-ingest"><div class="pipe-step-icon">📥</div><div class="pipe-step-name">Data Ingest</div><div class="pipe-step-time" id="step-ingest-t">—</div></div>
+            <div class="pipe-step" id="step-validate"><div class="pipe-step-icon">✅</div><div class="pipe-step-name">Validation</div><div class="pipe-step-time" id="step-validate-t">—</div></div>
+            <div class="pipe-step" id="step-features"><div class="pipe-step-icon">⚙️</div><div class="pipe-step-name">Feature Eng</div><div class="pipe-step-time" id="step-features-t">—</div></div>
+            <div class="pipe-step" id="step-score"><div class="pipe-step-icon">🧮</div><div class="pipe-step-name">ML Scoring</div><div class="pipe-step-time" id="step-score-t">—</div></div>
+            <div class="pipe-step" id="step-llm"><div class="pipe-step-icon">🤖</div><div class="pipe-step-name">LLM Explain</div><div class="pipe-step-time" id="step-llm-t">—</div></div>
+            <div class="pipe-step" id="step-guard"><div class="pipe-step-icon">🛡️</div><div class="pipe-step-name">Guardrails</div><div class="pipe-step-time" id="step-guard-t">—</div></div>
+            <div class="pipe-step" id="step-hitl"><div class="pipe-step-icon">👤</div><div class="pipe-step-name">HITL Review</div><div class="pipe-step-time" id="step-hitl-t">—</div></div>
+            <div class="pipe-step" id="step-audit"><div class="pipe-step-icon">📜</div><div class="pipe-step-name">Audit Log</div><div class="pipe-step-time" id="step-audit-t">—</div></div>
+        </div>
+
+        <div class="workspace">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📋 Credit Application Processing</h3>
+                    <span style="font-size:0.65rem;color:var(--text-muted);font-family:'IBM Plex Mono';">Bedrock + SageMaker</span>
+                </div>
+                <div class="card-body">
+                    <div class="controls">
+                        <button class="ctrl-btn" onclick="runPipeline()">▶️ Process Application</button>
+                        <button class="ctrl-btn" onclick="runBatch()">📦 Batch Run (5)</button>
+                        <button class="ctrl-btn" onclick="resetPipeline()">🔄 Reset</button>
+                    </div>
+
+                    <div class="applicant-card" id="applicantCard">
+                        <div class="applicant-row">
+                            <div>
+                                <div class="applicant-name" id="appName">—</div>
+                                <div class="applicant-id" id="appId">Run pipeline to process an application</div>
+                            </div>
+                            <div id="appType" style="font-size:0.7rem;color:var(--text-muted);">—</div>
+                        </div>
+                        <div class="applicant-grid">
+                            <div class="app-field"><div class="app-field-value" id="appIncome">—</div><div class="app-field-label">Annual Income</div></div>
+                            <div class="app-field"><div class="app-field-value" id="appDebt">—</div><div class="app-field-label">Debt Ratio</div></div>
+                            <div class="app-field"><div class="app-field-value" id="appHistory">—</div><div class="app-field-label">Credit History</div></div>
+                            <div class="app-field"><div class="app-field-value" id="appAmount">—</div><div class="app-field-label">Loan Amount</div></div>
+                        </div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div>
+                            <div class="score-display">
+                                <div class="score-circle" id="scoreCircle">
+                                    <div class="score-circle-inner">
+                                        <div class="score-value" id="scoreValue">—</div>
+                                        <div class="score-label">Credit Score</div>
+                                    </div>
+                                </div>
+                                <div class="score-verdict" id="scoreVerdict">Awaiting Processing</div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.78rem;font-weight:700;margin-bottom:0.6rem;">📊 Feature Importance</div>
+                            <div class="feature-list" id="featureList">
+                                <div style="color:var(--text-muted);font-size:0.75rem;text-align:center;padding:1rem;">Process an application to see features</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="llm-explanation" id="llmExplanation" style="display:none;">
+                        <div class="llm-header">
+                            <span style="font-size:0.9rem;">🤖</span>
+                            <span class="llm-badge">LLM Rationale · Art. 13 Transparency</span>
+                        </div>
+                        <div class="llm-text" id="llmText"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">🛡️ Guardrails Status</h3></div>
+                    <div class="card-body">
+                        <div class="guardrail-list" id="guardrailList">
+                            <div class="guardrail-item pending"><span class="guardrail-icon">🔍</span><span class="guardrail-name">Hallucination Detection</span><span class="guardrail-status">PENDING</span></div>
+                            <div class="guardrail-item pending"><span class="guardrail-icon">⚖️</span><span class="guardrail-name">Bias Check (Art. 10)</span><span class="guardrail-status">PENDING</span></div>
+                            <div class="guardrail-item pending"><span class="guardrail-icon">📋</span><span class="guardrail-name">Schema Validation</span><span class="guardrail-status">PENDING</span></div>
+                            <div class="guardrail-item pending"><span class="guardrail-icon">🔒</span><span class="guardrail-name">PII Redaction</span><span class="guardrail-status">PENDING</span></div>
+                            <div class="guardrail-item pending"><span class="guardrail-icon">📏</span><span class="guardrail-name">Confidence Threshold</span><span class="guardrail-status">PENDING</span></div>
+                            <div class="guardrail-item pending"><span class="guardrail-icon">🔄</span><span class="guardrail-name">Consistency Check</span><span class="guardrail-status">PENDING</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">👤 Human-in-the-Loop</h3></div>
+                    <div class="card-body">
+                        <div class="hitl-section">
+                            <div class="hitl-header">Art. 14 · Human Oversight Decision</div>
+                            <div class="hitl-actions">
+                                <button class="hitl-btn approve" onclick="hitlDecision('approved')">✅ Approve</button>
+                                <button class="hitl-btn escalate" onclick="hitlDecision('escalated')">⚠️ Escalate</button>
+                                <button class="hitl-btn reject" onclick="hitlDecision('denied')">❌ Reject</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">📜 DORA Audit Trail</h3>
+                        <span style="font-size:0.6rem;color:var(--text-muted);" id="auditCount">0 events</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="audit-log" id="auditLog">
+                            <div style="color:var(--text-muted);font-size:0.75rem;text-align:center;padding:1.2rem;">Process an application to see audit trail</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="processing-overlay" id="processingOverlay">
+        <div class="proc-anim"><div class="proc-dot"></div><div class="proc-dot"></div><div class="proc-dot"></div><div class="proc-dot"></div><div class="proc-dot"></div></div>
+        <div class="proc-text">Processing Credit Application...</div>
+        <div class="proc-stage" id="procStage">Ingesting applicant data...</div>
+        <div class="proc-bar-wrap"><div class="proc-bar" id="procBar"></div></div>
+    </div>
+
+    <div class="toast" id="toast">
+        <span class="toast-icon" id="toastIcon">✅</span>
+        <div><div class="toast-title" id="toastTitle">Success</div><div class="toast-msg" id="toastMsg">Done</div></div>
+    </div>
+
+    <script>
+        let auditEntries = [];
+        let currentScore = 0;
+        let pipelineRunning = false;
+
+        const names = ['Marie Dupont','Jean-Pierre Martin','Sophie Bernard','Lucas Moreau','Camille Petit','Antoine Leroy','Chloé Dubois','Thomas Lambert'];
+        const loanTypes = ['Mortgage','Personal Loan','Auto Loan','Business Credit','Revolving Credit'];
+
+        const features = [
+            { name: 'Payment History', color: 'var(--primary)' },
+            { name: 'Credit Utilization', color: 'var(--secondary)' },
+            { name: 'Account Age', color: 'var(--accent)' },
+            { name: 'Debt-to-Income', color: 'var(--success)' },
+            { name: 'Recent Inquiries', color: 'var(--warning)' },
+            { name: 'Employment Tenure', color: 'var(--danger)' },
+        ];
+
+        const explanations = [
+            (s, n) => `The applicant <span class="highlight">${n}</span> receives a credit score of <span class="highlight">${s}</span>. ${s >= 700 ? 'Strong payment history (98.2% on-time over 7 years) and low credit utilization (23%) are the primary positive factors.' : s >= 600 ? 'Moderate credit history with some late payments in the past 24 months. Debt-to-income ratio of 38% approaches the upper threshold.' : 'Multiple delinquencies in the past 12 months and high credit utilization (78%) significantly impact the score.'} Under EU AI Act Art. 13, this explanation is generated to ensure transparency of the automated decision-making process.`,
+            (s, n) => `Assessment for <span class="highlight">${n}</span>: Score <span class="highlight">${s}</span>. ${s >= 700 ? 'The model identifies stable employment (5+ years), diversified credit mix, and consistent savings pattern as key positive signals.' : s >= 600 ? 'Mixed signals: adequate income but elevated debt ratio. The model recommends additional documentation review per Art. 14 human oversight requirements.' : 'High-risk profile detected. Key concerns: recent credit inquiries (6 in 90 days), thin credit file, and income instability.'} This rationale complies with DORA ICT risk transparency requirements.`
+        ];
+
+        function runPipeline() {
+            if (pipelineRunning) return;
+            pipelineRunning = true;
+            resetSteps();
+
+            const overlay = document.getElementById('processingOverlay');
+            const bar = document.getElementById('procBar');
+            const stage = document.getElementById('procStage');
+            overlay.classList.add('active');
+
+            const steps = [
+                { id: 'ingest', label: 'Ingesting applicant data...', dur: 400 },
+                { id: 'validate', label: 'Running PydanticAI validation...', dur: 350 },
+                { id: 'features', label: 'Engineering 47 credit features...', dur: 500 },
+                { id: 'score', label: 'Running XGBoost + SageMaker scoring...', dur: 600 },
+                { id: 'llm', label: 'Generating LLM explanation (Bedrock)...', dur: 800 },
+                { id: 'guard', label: 'Executing guardrail checks...', dur: 400 },
+                { id: 'hitl', label: 'Routing to human oversight...', dur: 300 },
+                { id: 'audit', label: 'Writing DORA audit trail...', dur: 250 },
+            ];
+
+            let progress = 0;
+            let stepIdx = 0;
+            const iv = setInterval(() => {
+                progress += Math.random() * 14 + 5;
+                if (progress > 100) progress = 100;
+                bar.style.width = progress + '%';
+                const ns = Math.floor((progress / 100) * steps.length);
+                if (ns !== stepIdx && ns < steps.length) {
+                    if (stepIdx < steps.length) {
+                        document.getElementById(`step-${steps[stepIdx].id}`).classList.remove('active');
+                        document.getElementById(`step-${steps[stepIdx].id}`).classList.add('done');
+                        document.getElementById(`step-${steps[stepIdx].id}-t`).textContent = `${(Math.random()*200+50).toFixed(0)}ms`;
+                    }
+                    stepIdx = ns;
+                    stage.textContent = steps[stepIdx].label;
+                    document.getElementById(`step-${steps[stepIdx].id}`).classList.add('active');
+                }
+                if (progress >= 100) {
+                    clearInterval(iv);
+                    steps.forEach(s => {
+                        const el = document.getElementById(`step-${s.id}`);
+                        el.classList.remove('active'); el.classList.add('done');
+                        if (document.getElementById(`step-${s.id}-t`).textContent === '—')
+                            document.getElementById(`step-${s.id}-t`).textContent = `${(Math.random()*200+50).toFixed(0)}ms`;
+                    });
+                    setTimeout(() => { overlay.classList.remove('active'); showResults(); pipelineRunning = false; }, 400);
+                }
+            }, 80);
+        }
+
+        function showResults() {
+            // Generate applicant
+            const name = names[Math.floor(Math.random()*names.length)];
+            const type = loanTypes[Math.floor(Math.random()*loanTypes.length)];
+            const income = (30000 + Math.random()*120000).toFixed(0);
+            const debt = (15 + Math.random()*50).toFixed(0);
+            const history = Math.floor(2 + Math.random()*18);
+            const amount = (5000 + Math.random()*300000).toFixed(0);
+            const score = Math.floor(450 + Math.random()*400);
+
+            document.getElementById('appName').textContent = name;
+            document.getElementById('appId').textContent = `APP-${Date.now().toString().slice(-6)} · ${type}`;
+            document.getElementById('appType').textContent = type;
+            document.getElementById('appIncome').textContent = `€${Number(income).toLocaleString()}`;
+            document.getElementById('appDebt').textContent = `${debt}%`;
+            document.getElementById('appHistory').textContent = `${history}yr`;
+            document.getElementById('appAmount').textContent = `€${Number(amount).toLocaleString()}`;
+
+            // Score circle
+            currentScore = score;
+            const pct = ((score - 300) / 550) * 100;
+            const color = score >= 700 ? 'var(--success)' : score >= 600 ? 'var(--warning)' : 'var(--danger)';
+            document.getElementById('scoreCircle').style.background = `conic-gradient(${color} 0% ${pct}%, var(--bg-elevated) ${pct}% 100%)`;
+            document.getElementById('scoreValue').textContent = score;
+            document.getElementById('scoreValue').style.color = color;
+            const verdict = score >= 700 ? 'APPROVED' : score >= 600 ? 'MANUAL REVIEW' : 'DENIED';
+            const verdictClass = score >= 700 ? 'approved' : score >= 600 ? 'review' : 'denied';
+            document.getElementById('scoreVerdict').textContent = verdict;
+            document.getElementById('scoreVerdict').className = `score-verdict ${verdictClass}`;
+
+            // Features
+            const fl = document.getElementById('featureList');
+            fl.innerHTML = features.map(f => {
+                const val = (Math.random()*0.6+0.15);
+                return `<div class="feature-item">
+                    <span class="feature-name">${f.name}</span>
+                    <div class="feature-bar"><div class="feature-fill" style="width:${val*100}%;background:${f.color};"></div></div>
+                    <span class="feature-val">${(val*100).toFixed(0)}%</span>
+                </div>`;
+            }).join('');
+
+            // LLM Explanation with typewriter
+            const expDiv = document.getElementById('llmExplanation');
+            expDiv.style.display = 'block';
+            const textEl = document.getElementById('llmText');
+            const fullText = explanations[Math.floor(Math.random()*explanations.length)](score, name);
+            typeWriter(textEl, fullText, 0);
+
+            // Guardrails
+            updateGuardrails(score);
+
+            // Audit entries
+            generateAuditTrail(name, score, verdict, type);
+            showToast('✅', 'Pipeline Complete', `${name} · Score: ${score}`);
+        }
+
+        function typeWriter(el, html, idx) {
+            if (idx === 0) el.innerHTML = '';
+            // Simple approach: render incrementally
+            const plainText = html.replace(/<[^>]*>/g, '');
+            const chars = plainText.length;
+            let i = 0;
+            const iv = setInterval(() => {
+                i += 2;
+                if (i >= chars) { el.innerHTML = html; clearInterval(iv); return; }
+                el.innerHTML = html.slice(0, html.indexOf(plainText[i]) + i) + '<span class="llm-cursor"></span>';
+            }, 15);
+            // Fallback: just set after 2s
+            setTimeout(() => { el.innerHTML = html; clearInterval(iv); }, 2500);
+        }
+
+        function updateGuardrails(score) {
+            const items = document.querySelectorAll('.guardrail-item');
+            const results = [
+                score >= 500, // hallucination
+                score >= 450, // bias
+                true, // schema
+                true, // pii
+                score >= 550, // confidence
+                score >= 500, // consistency
+            ];
+            items.forEach((item, i) => {
+                setTimeout(() => {
+                    item.classList.remove('pending','pass','fail');
+                    item.classList.add(results[i] ? 'pass' : 'fail');
+                    const st = item.querySelector('.guardrail-status');
+                    st.textContent = results[i] ? 'PASS' : 'FAIL';
+                    st.className = `guardrail-status ${results[i] ? 'pass' : 'fail'}`;
+                }, i * 150);
+            });
+        }
+
+        function generateAuditTrail(name, score, verdict, type) {
+            const log = document.getElementById('auditLog');
+            log.innerHTML = '';
+            auditEntries = [];
+            const events = [
+                { icon:'📥', title:`Application ${name} ingested`, cls:'', detail:`${type} · DORA log` },
+                { icon:'✅', title:'PydanticAI schema validated', cls:'guard', detail:'47 features · 0 errors' },
+                { icon:'🧮', title:`ML score computed: ${score}`, cls:'', detail:'XGBoost v3.2 · SageMaker' },
+                { icon:'🤖', title:'LLM rationale generated', cls:'llm', detail:'Bedrock Claude · Art. 13' },
+                { icon:'🛡️', title:'Guardrail checks completed', cls:'guard', detail:`${score >= 550 ? '6/6 passed' : '4/6 passed · 2 flagged'}` },
+                { icon:'📜', title:`Verdict: ${verdict}`, cls:'dora', detail:'DORA ICT risk trail recorded' },
+            ];
+            events.forEach((e, i) => {
+                setTimeout(() => addAuditItem(e), i * 180);
+            });
+        }
+
+        function addAuditItem(event) {
+            const log = document.getElementById('auditLog');
+            const ts = new Date().toLocaleTimeString('fr-FR');
+            const item = document.createElement('div');
+            item.className = `audit-item ${event.cls}`;
+            item.innerHTML = `<div class="audit-icon">${event.icon}</div><div class="audit-content"><div class="audit-title">${event.title}</div><div class="audit-meta">${ts} · ${event.detail}</div></div>`;
+            log.insertBefore(item, log.firstChild);
+            auditEntries.unshift(item);
+            document.getElementById('auditCount').textContent = `${auditEntries.length} events`;
+        }
+
+        function hitlDecision(decision) {
+            const colors = { approved: 'var(--success)', denied: 'var(--danger)', escalated: 'var(--warning)' };
+            const labels = { approved: 'APPROVED', denied: 'DENIED', escalated: 'ESCALATED' };
+            document.getElementById('scoreVerdict').textContent = `HITL: ${labels[decision]}`;
+            document.getElementById('scoreVerdict').style.color = colors[decision];
+            addAuditItem({ icon: '👤', title: `Human override: ${labels[decision]}`, cls: 'dora', detail: 'Art. 14 human oversight recorded' });
+            showToast(decision === 'approved' ? '✅' : decision === 'denied' ? '❌' : '⚠️', `Decision: ${labels[decision]}`, 'Human oversight logged');
+        }
+
+        function resetSteps() {
+            ['ingest','validate','features','score','llm','guard','hitl','audit'].forEach(s => {
+                document.getElementById(`step-${s}`).className = 'pipe-step';
+                document.getElementById(`step-${s}-t`).textContent = '—';
+            });
+        }
+
+        function runBatch() {
+            let count = 0;
+            const iv = setInterval(() => {
+                runPipeline();
+                count++;
+                if (count >= 5) clearInterval(iv);
+            }, 4000);
+            showToast('📦', 'Batch Processing', '5 applications queued');
+        }
+
+        function resetPipeline() {
+            pipelineRunning = false;
+            auditEntries = [];
+            resetSteps();
+            document.getElementById('appName').textContent = '—';
+            document.getElementById('appId').textContent = 'Run pipeline to process an application';
+            document.getElementById('appType').textContent = '—';
+            ['appIncome','appDebt','appHistory','appAmount'].forEach(id => document.getElementById(id).textContent = '—');
+            document.getElementById('scoreValue').textContent = '—';
+            document.getElementById('scoreValue').style.color = 'var(--text-primary)';
+            document.getElementById('scoreCircle').style.background = `conic-gradient(var(--success) 0% 0%, var(--bg-elevated) 0% 100%)`;
+            document.getElementById('scoreVerdict').textContent = 'Awaiting Processing';
+            document.getElementById('scoreVerdict').className = 'score-verdict';
+            document.getElementById('llmExplanation').style.display = 'none';
+            document.getElementById('featureList').innerHTML = '<div style="color:var(--text-muted);font-size:0.75rem;text-align:center;padding:1rem;">Process an application to see features</div>';
+            document.querySelectorAll('.guardrail-item').forEach(i => { i.className = 'guardrail-item pending'; i.querySelector('.guardrail-status').textContent = 'PENDING'; i.querySelector('.guardrail-status').className = 'guardrail-status'; });
+            document.getElementById('auditLog').innerHTML = '<div style="color:var(--text-muted);font-size:0.75rem;text-align:center;padding:1.2rem;">Process an application to see audit trail</div>';
+            document.getElementById('auditCount').textContent = '0 events';
+            showToast('🔄', 'Reset', 'Pipeline cleared');
+        }
+
+        function showToast(icon, title, msg) {
+            document.getElementById('toastIcon').textContent = icon;
+            document.getElementById('toastTitle').textContent = title;
+            document.getElementById('toastMsg').textContent = msg;
+            const t = document.getElementById('toast');
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+    </script>
+</body>
+</html>
